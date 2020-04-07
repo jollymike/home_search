@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 from time import sleep
 from requests.exceptions import Timeout
+import geopy.distance as gd
 
 print('Initializing..')
 
@@ -35,8 +36,7 @@ def get_details(place_id):
     return response
 
 def stringClean(string):
-    string = string.strip()
-    string = string.replace(" ", "-").replace("\\", "-").replace(".", "").replace("/", "-")
+    string = string.strip().replace(" ", "-").replace("\\", "-").replace(".", "").replace("/", "-")
     return string
 
 MARTA_STATIONS = r'C:\Users\MLondeen\data\marta_stations.csv'
@@ -62,11 +62,19 @@ with open(MARTA_STATIONS) as csv_file:
             for result in results['results']:
                 n = result['name']
                 print(f'Retrieving details for {n}..')
+                
+                coords_station = (row['lat'],row['lng'])
+                coords_apt =     (result['geometry']['location']['lat'],result['geometry']['location']['lng'])
+
+                print geopy.distance.vincenty(coords_1, coords_2).km
+
                 a = {'place_id':result['place_id'],
                     'name':result['name'],
                     'lat':result['geometry']['location']['lat'],
                     'lng':result['geometry']['location']['lng'],
-                    'nearest_station':row['Station']}
+                    'nearest_station':row['Station'],
+                    'distance_to_station':geopy.distance.distance(coords_station,coords_apt).miles}
+                
                 sleep(1) # make sure the calls are nice and slow
                 details = get_details(result['place_id'])
                 if details:
