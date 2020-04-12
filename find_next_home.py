@@ -10,6 +10,9 @@ print('Initializing..')
 BASE_URL = r'https://maps.googleapis.com/maps/api/place/'
 OUTPUT_TYPE = 'json'
 API_KEY = 'AIzaSyA9VV9_anrWaknUBHYEuCHgqKcSWWjsNyk'
+MARTA_STATIONS = r'.\data\marta_stations_test.csv'
+
+total_ct = 0
 
 def get_response(api,params):
     CALL = f"{BASE_URL}{api}{OUTPUT_TYPE}?key={API_KEY}&{params}"
@@ -28,10 +31,19 @@ def get_places(lat,lng,radius,keyword):
     PARAMS = f"location={lat},{lng}&radius={radius}&keyword={keyword}"
     return get_response(API,PARAMS)
 
-def get_next_pg(next_page_token):
+def get_next_pg(next_page_token,backoff = 1):
     API = r'nearbysearch/'
-    PARAMS = f"next_page_token={next_page_token}"
-    return get_response(API,PARAMS)
+    PARAMS = f"pagetoken={next_page_token}"
+
+    response = get_response(API,PARAMS)
+    if response:
+        if response.json()['status'] == 'INVALID_REQUEST':
+            print('Got an invalid request response. Trying again.')
+            backoff *= 2
+            sleep(backoff)
+            get_next_pg(next_page_token,backoff)
+        else:
+            return response
 
 def get_details(place_id):
     API = r'details/'
@@ -40,38 +52,49 @@ def get_details(place_id):
 
 def stringClean(string):
     return string.strip().replace(" ", "-").replace("\\", "-").replace(".", "").replace("/", "-")
-     
+
 def process_response(response):
-    print(f'This station has {len(response.json())} nearby apartments. Attempting to process..')
+    results = response.json()['results']
+    print(f'This station has {len(results)} nearby apartments. Attempting to process..')
     result_list = []
-    for result in response.json()['results']:                
+    for result in results:                
         coords_station = (row['lat'],row['lng'])
         coords_apt     = (result['geometry']['location']['lat'],result['geometry']['location']['lng'])                
         apt = {'place_id':result['place_id'],
-               'name':result['name'],
-               'lat':result['geometry']['location']['lat'],
-               'lng':result['geometry']['location']['lng'],
-               'nearest_station':row['Station'],
-               'distance_to_station':gd.distance(coords_station,coords_apt).miles}                
+                'name':result['name'],
+                'lat':result['geometry']['location']['lat'],
+                'lng':result['geometry']['location']['lng'],
+                'nearest_station':row['Station'],
+                'distance_to_station':gd.distance(coords_station,coords_apt).miles}                
         sleep(.1) # make sure the calls are nice and slow
-        details = get_details(result['place_id'].json()['result'])
-        if details:
+        details_res = get_details(result['place_id'])
+        if details_res:
+            print('got details')
+            details = details_res.json()['result']
             result_list.append({**apt,**details})
+            global total_ct
             total_ct += 1
         else:
+            print('failed to get details')
             result_list.append(apt)
     return result_list
-        
 
-def build_request(input):
+def handle_pages(response,apt_list):
+    if 'next_page_token' in response.json():
+        print('going to next page')
+        apt_list += process_response(response)
+        next_response = get_next_pg(response.json()['next_page_token'])
+        handle_pages(next_response,apt_list)
+    else:
+        print('last pg')
+        apt_list += process_response(response)
+        print('returning list')
+        return apt_list
 
 def persist_data(data,station):
     print('Processing for station complete. Persisting to Disk..')
-    pd.DataFrame(data).to_csv(stringClean(f'station_{station}_apartments.csv'), index=False)
-
-MARTA_STATIONS = r'.\data\marta_stations_test.csv'
-
-total_ct = 0
+    a = pd.DataFrame(data)
+    a.to_csv(stringClean(f'station_{station}_apartments.csv'), index=False)
 
 # driver
 with open(MARTA_STATIONS) as csv_file:
@@ -81,20 +104,11 @@ with open(MARTA_STATIONS) as csv_file:
     for row in csv_reader:
         station = row['Station']
         print(f'Retrieving apartments near Station {station}..')
-        sleep(.1) # make sure the calls are nice and slow
         response = get_places(row['lat'],row['lng'],'900','apartment')
-        apartment_list = []
         if response:
-            apartment_list = apartment_list**, process_response(response)**)
-            if 'next_page_token' in response.json():
-                response = get_places(row['lat'],row['lng'],'900','apartment')
-                process_response(response)
-            else:
-                print(f'Finished current station Moving on to next station..')
-            persist_data(apartment_list,station)
+            persist_data(handle_pages(response,[]),station)
+            print(f'Finished current station. Moving on to next station..')
         else:
             print(f'Request Failed! Moving on to next station..')        
 
-
 print(f'Fetched a total of {total_ct} results. Shutting Down..')
-
