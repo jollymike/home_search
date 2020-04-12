@@ -94,7 +94,8 @@ def handle_pages(response,apt_list):
 def persist_data(data,station):
     print('Processing for station complete. Persisting to Disk..')
     a = pd.DataFrame(data)
-    a.to_csv(stringClean(f'station_{station}_apartments.csv'), index=False)
+    print(data)
+    a.to_csv(stringClean(f'station_{station}_apartments') + '.csv', index=False)
 
 # driver
 with open(MARTA_STATIONS) as csv_file:
