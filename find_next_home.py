@@ -81,20 +81,26 @@ def process_response(response):
 
 def handle_pages(response,apt_list):
     if 'next_page_token' in response.json():
-        print('going to next page')
+        print(len(apt_list))
         apt_list += process_response(response)
+        print(len(apt_list))
         next_response = get_next_pg(response.json()['next_page_token'])
-        handle_pages(next_response,apt_list)
+        print('going to next page')
+        return handle_pages(next_response,apt_list)
     else:
         print('last pg')
+        print(len(apt_list))
         apt_list += process_response(response)
-        print('returning list')
+        print(len(apt_list))
+        print(type(apt_list))
         return apt_list
 
 def persist_data(data,station):
     print('Processing for station complete. Persisting to Disk..')
-    a = pd.DataFrame(data)
+    print(station)
     print(data)
+    a = pd.DataFrame(data)
+    print(a)
     a.to_csv(stringClean(f'station_{station}_apartments') + '.csv', index=False)
 
 # driver
@@ -107,7 +113,10 @@ with open(MARTA_STATIONS) as csv_file:
         print(f'Retrieving apartments near Station {station}..')
         response = get_places(row['lat'],row['lng'],'900','apartment')
         if response:
-            persist_data(handle_pages(response,[]),station)
+            h = handle_pages(response,[])
+            print(type(h))
+            print(h)
+            persist_data(h,station)
             print(f'Finished current station. Moving on to next station..')
         else:
             print(f'Request Failed! Moving on to next station..')        
