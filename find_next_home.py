@@ -10,7 +10,7 @@ print('Initializing..')
 BASE_URL = r'https://maps.googleapis.com/maps/api/place/'
 OUTPUT_TYPE = 'json'
 API_KEY = 'AIzaSyA9VV9_anrWaknUBHYEuCHgqKcSWWjsNyk'
-MARTA_STATIONS = r'.\data\marta_stations_test.csv'
+MARTA_STATIONS = r'.\data\marta_stations.csv'
 
 total_ct = 0
 
